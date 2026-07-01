@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Deployin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center font-sans">
+
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+
+        <!-- Logo / Header -->
+        <div class="text-center mb-8">
+            <div class="text-4xl mb-2">🚀</div>
+            <h2 class="text-2xl font-bold text-gray-800">Masuk ke Deployin</h2>
+            <p class="text-gray-500 text-sm mt-1">Masukkan kredensial Anda untuk melanjutkan</p>
+        </div>
+
+        <!-- Menangkap Pesan Error dari Flask -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded text-sm" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Form Login -->
+        <form action="/login" method="POST" class="space-y-6">
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-700">Username</label>
+                <input type="text" name="username" placeholder="Masukkan username" class="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-50" required>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-700">Password</label>
+                <input type="password" name="password" placeholder="••••••••" class="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-50" required>
+            </div>
+
+            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg shadow-md transition duration-200">
+                Masuk
+            </button>
+        </form>
+
+        <div class="mt-6 text-center">
+            <a href="/" class="text-sm text-gray-500 hover:text-purple-600 transition">
+                &larr; Kembali ke Halaman Utama
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

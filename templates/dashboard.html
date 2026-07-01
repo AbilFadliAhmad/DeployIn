@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployin - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans relative">
+
+    <!-- Modal Dialog Port (Tersembunyi secara default) -->
+    <div id="portModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex justify-center items-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 transform transition-all">
+
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="bg-yellow-100 p-2 rounded-full text-yellow-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Peringatan Port</h3>
+            </div>
+
+            <p class="text-sm text-gray-600 mb-3">
+                Anda mendefinisikan Port <b><span id="modalPortNum"></span></b>. Apakah Anda ingin menghapus dan mematikan aplikasi yang sedang berjalan di port ini sebelum melakukan deployment baru?
+            </p>
+
+            <p class="text-sm text-gray-600 mb-6 p-3 bg-gray-50 rounded border border-gray-200">
+                Uji akses web Anda saat ini di sini:<br>
+                <a id="modalLink" href="#" target="_blank" class="text-blue-600 hover:text-blue-800 underline font-bold break-all mt-1 inline-block"></a>
+            </p>
+
+            <div class="flex justify-end space-x-3 mt-2">
+                <button type="button" id="btnCancelModal" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded font-semibold transition">Batal</button>
+                <button type="button" id="btnHapusDeploy" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold shadow-md transition">Ya, Hapus & Deploy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="bg-blue-600 text-white shadow-md">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="text-2xl font-bold tracking-wider">🚀 Deployin</div>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm">Halo, <strong>{{ current_user.username }}</strong></span>
+                <a href="/manage-templates" class="bg-blue-800 hover:bg-blue-900 px-3 py-1 rounded text-sm transition font-medium">Manajemen Template</a>
+                <a href="/logout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-10 max-w-3xl">
+        <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+            <h2 class="text-xl font-bold mb-6 text-gray-700 border-b pb-2">Konfigurasi Deployment</h2>
+
+            <form id="deployForm" class="space-y-6">
+                <!-- Dropdown Teknologi -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-700">Pilih Teknologi</label>
+                    <select id="teknologi" class="w-full border border-gray-300 px-4 py-2 rounded bg-gray-50" required>
+                        <option value="" disabled selected>-- Pilih Template Teknologi --</option>
+                        {% for t in templates %}
+                            <option value="{{ t.id }}">{{ t.nama_teknologi }} {% if t.is_global %}(Global){% else %}(Pribadi){% endif %}</option>
+                        {% endfor %}
+                        <option value="new_template" class="font-bold text-blue-700 bg-blue-50">&#43; Tambah Template Baru...</option>
+                    </select>
+                </div>
+
+                <!-- Textarea Perintah Terminal -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-700">Perintah Terminal (Read-only)</label>
+                    <textarea id="commandBox" rows="4" class="w-full border border-gray-700 px-4 py-2 rounded font-mono text-sm bg-gray-900 text-green-400 cursor-not-allowed opacity-90" placeholder="Pilih teknologi di atas untuk memuat perintah otomatis..." readonly required></textarea>
+                </div>
+
+                <!-- GRID BARIS 1: Kredensial Akses Server -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- 1. IP Host -->
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-700">IP Host VPS</label>
+                        <input type="text" id="vpsIp" placeholder="Cth: 192.168.1.100" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <!-- 2. Username VPS -->
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-700">Username VPS</label>
+                        <input type="text" id="vpsUsername" placeholder="Cth: root / ubuntu" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <!-- 3. Password VPS -->
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-700">Password VPS</label>
+                        <input type="password" id="vpsPassword" placeholder="***" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                </div>
+
+                <!-- GRID BARIS 2: Detail Aplikasi & Port -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- 4. Link Project GitHub -->
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-700">Link Project GitHub</label>
+                        <input type="url" id="githubLink" placeholder="https://github.com/username/repo.git" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <!-- 5. Port Aplikasi -->
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-gray-700">Port Aplikasi (Gunicorn dll)</label>
+                        <input type="number" id="appPort" placeholder="Cth: 8000" class="w-full border border-gray-300 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Tombol Submit -->
+                <button type="submit" id="btnDeploy" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition flex justify-center items-center">
+                    <span>🚀 Mulai Deploy Sekarang</span>
+                </button>
+            </form>
+
+            <!-- Terminal Output -->
+            <div id="terminalOutput" class="mt-8 hidden">
+                <h3 class="text-sm font-bold text-gray-700 mb-2">Live Log Eksekusi:</h3>
+                <div class="bg-black text-green-400 p-4 rounded text-sm font-mono whitespace-pre-wrap overflow-y-auto h-64 border border-gray-700" id="logContent"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropdown = document.getElementById('teknologi');
+            const commandBox = document.getElementById('commandBox');
+            const vpsIp = document.getElementById('vpsIp');
+            const vpsPassword = document.getElementById('vpsPassword');
+            const appPort = document.getElementById('appPort');
+            const githubLink = document.getElementById('githubLink');
+            const form = document.getElementById('deployForm');
+            const btnDeploy = document.getElementById('btnDeploy');
+            const portModal = document.getElementById('portModal');
+
+            // Load dari LocalStorage
+            if(localStorage.getItem('deployin_ip')) vpsIp.value = localStorage.getItem('deployin_ip');
+            if(localStorage.getItem('deployin_pass')) vpsPassword.value = localStorage.getItem('deployin_pass');
+            if(localStorage.getItem('deployin_port')) appPort.value = localStorage.getItem('deployin_port');
+
+            dropdown.addEventListener('change', async function() {
+                if (this.value === 'new_template') {
+                    window.location.href = '/manage-templates';
+                    return;
+                }
+
+                commandBox.value = "Mengambil perintah...";
+                try {
+                    const response = await fetch(`/api/get_template/${this.value}`);
+                    const data = await response.json();
+                    if(data.status === 'success') commandBox.value = data.perintah_default;
+                    else commandBox.value = "Gagal mengambil data.";
+                } catch (error) {
+                    commandBox.value = "Terjadi kesalahan jaringan.";
+                }
+            });
+
+            // Fungsi Inti untuk mengeksekusi fetch
+            async function prosesDeployment(payload) {
+                const terminal = document.getElementById('terminalOutput');
+                const logContent = document.getElementById('logContent');
+
+                // Setel visual tombol loading
+                btnDeploy.innerHTML = `⏳ Menjalankan proses... (Mohon tunggu)`;
+                btnDeploy.disabled = true;
+                btnDeploy.classList.add('opacity-70', 'cursor-not-allowed');
+
+                terminal.classList.remove('hidden');
+                logContent.innerText = "Menghubungkan ke VPS via SSH...\nMenjalankan perintah:\n";
+
+                try {
+                    const response = await fetch('/api/execute_deploy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    logContent.innerText += "\n" + result.log;
+
+                    if(result.status === 'success' || result.status === 'warning') {
+                        logContent.innerText += "\n\n[DEPLOYIN] ✅ Proses Eksekusi Selesai!";
+                    } else {
+                        logContent.innerText += "\n\n[DEPLOYIN] ❌ Koneksi atau Autentikasi Gagal!";
+                    }
+                } catch (error) {
+                    logContent.innerText += "\n\n[DEPLOYIN] ❌ Gagal menghubungi server internal: " + error.message;
+                } finally {
+                    btnDeploy.innerHTML = `🚀 Mulai Deploy Sekarang`;
+                    btnDeploy.disabled = false;
+                    btnDeploy.classList.remove('opacity-70', 'cursor-not-allowed');
+                }
+            }
+
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                // Simpan ke LocalStorage
+                localStorage.setItem('deployin_ip', vpsIp.value);
+                localStorage.setItem('deployin_pass', vpsPassword.value);
+                localStorage.setItem('deployin_port', appPort.value);
+
+                // Siapkan Payload Awal
+                let payload = {
+                    ip: vpsIp.value,
+                    password: vpsPassword.value,
+                    github_link: githubLink.value,
+                    port: appPort.value,
+                    perintah: commandBox.value,
+                    kill_port: false
+                };
+
+                // Pengecekan Dialog Port
+                if (appPort.value.trim() !== "") {
+                    // Tampilkan Modal
+                    document.getElementById('modalPortNum').innerText = appPort.value;
+                    const webLink = `http://${vpsIp.value}:${appPort.value}`;
+
+                    const linkElement = document.getElementById('modalLink');
+                    linkElement.href = webLink;
+                    linkElement.innerText = webLink;
+
+                    portModal.classList.remove('hidden');
+
+                    // Listener untuk Tombol Batal Modal
+                    document.getElementById('btnCancelModal').onclick = function() {
+                        portModal.classList.add('hidden');
+                        // Deployment dibatalkan
+                    };
+
+                    // Listener untuk Tombol Hapus Modal
+                    document.getElementById('btnHapusDeploy').onclick = function() {
+                        portModal.classList.add('hidden');
+                        payload.kill_port = true; // Set flag hapus port
+                        prosesDeployment(payload); // Eksekusi
+                    };
+                } else {
+                    // Jika port kosong, langsung eksekusi tanpa modal
+                    prosesDeployment(payload);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
