@@ -262,6 +262,14 @@
                         <p class="text-sm text-gray-800 leading-relaxed">
                             Salin dan tempel (paste) isi variabel *Environment* Anda dalam bentuk plain text di bawah ini. File ini akan otomatis dibuat di dalam folder root aplikasi Anda saat deployment.
                         </p>
+
+                        <div class="bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-xl flex items-start space-x-2.5">
+                            <span class="text-amber-600 font-semibold text-base mt-0.5">⚠️</span>
+                            <div class="text-xs text-amber-800 leading-relaxed">
+                                <span class="font-bold text-amber-900">Penting:</span> Untuk sementara Agar database dapat terhubung di server Deployin, pastikan Anda mengatur <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-amber-900">DB_USER=rio</code> dan <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-amber-900">DB_PASSWORD=123</code>.
+                            </div>
+                        </div>
+
                         <textarea id="envPlainContent" rows="8" placeholder="DB_HOST=localhost&#10;DB_PASS=rahasia123&#10;SECRET_KEY=my_secret_key" class="w-full font-mono text-xs bg-gray-50 border border-gray-300 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"></textarea>
                     </div>
                     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3 border-t">
@@ -498,7 +506,8 @@
                     wrapper.scrollTop = wrapper.scrollHeight;
                     
                     isProcessing = false;
-                    btnDeploy.innerHTML = `🚀 Mulai Deploy Sekarang`;
+                    btnText.innerText = `🚀 Mulai Deploy Sekarang`;
+                    spinner.classList.add('hidden');
                     btnDeploy.disabled = false;
                     btnDeploy.classList.remove('opacity-70', 'cursor-not-allowed');
                 }
