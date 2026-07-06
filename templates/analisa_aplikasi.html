@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisa & Feedback - Deployin Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans pb-12">
+
+    <nav class="bg-blue-600 text-white shadow-md relative z-50">
+        <div class="container mx-auto px-6 py-3 flex justify-between items-center">
+            <a href="/dashboard" class="flex items-center space-x-2 text-2xl font-bold tracking-wider hover:opacity-90 transition">
+                <span>🚀</span><span>Deployin Admin</span>
+            </a>
+            <a href="/dashboard" class="bg-blue-800 hover:bg-blue-900 px-4 py-2 rounded font-medium transition text-sm">
+                &larr; Kembali
+            </a>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-6 py-10">
+
+        <div class="mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-800">📊 Dashboard Analitik</h1>
+            <p class="text-gray-500 mt-1">Pantau aktivitas deployment dan baca masukan dari tim.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center">
+                <h2 class="text-lg font-bold text-gray-700 mb-4 w-full text-left">Rasio Keberhasilan Deployment</h2>
+                <div class="w-full max-w-xs">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 md:col-span-1">
+                <h2 class="text-lg font-bold text-gray-700 mb-4">Analisa Pengguna Teraktif</h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 h-64">
+                        <canvas id="userChart"></canvas>
+                    </div>
+
+                    <div class="lg:col-span-1 flex flex-col justify-center">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">🔥 Top 5 Users</h3>
+
+                        <div class="flex flex-col space-y-2">
+                            {% if top_users %}
+                                {% for tu in top_users %}
+                                <div class="flex items-center justify-between bg-gray-50 border border-gray-100 p-2.5 rounded-xl transition hover:bg-blue-50/50">
+                                    <div class="flex items-center space-x-2.5 min-w-0">
+                                        <span class="w-5 h-5 flex items-center justify-center rounded-full text-xs font-extrabold
+                                            {% if loop.index == 1 %} bg-amber-100 text-amber-700
+                                            {% elif loop.index == 2 %} bg-slate-200 text-slate-700
+                                            {% elif loop.index == 3 %} bg-orange-100 text-orange-700
+                                            {% else %} bg-gray-200 text-gray-600 {% endif %}">
+                                            {{ loop.index }}
+                                        </span>
+                                        <span class="text-sm font-semibold text-gray-700 truncate">{{ tu.username }}</span>
+                                    </div>
+                                    <span class="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg shrink-0">
+                                        {{ tu.total }}x
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-xs text-gray-400 italic">Belum ada aktivitas.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center space-x-2">
+                <span>📥</span> <span>Kotak Masukan (Bug & Saran)</span>
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% if feedbacks %}
+                    {% for f in feedbacks %}
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 relative overflow-hidden group hover:shadow-md transition">
+                        <div class="absolute top-0 left-0 w-1 h-full {% if f.jenis == 'bug' %}bg-red-500{% else %}bg-green-500{% endif %}"></div>
+
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <span class="font-bold text-gray-800 block text-lg">{{ f.user.username }}</span>
+                                <span class="text-xs text-gray-400">{{ f.tanggal.strftime('%d %b %Y - %H:%M') }}</span>
+                            </div>
+                            {% if f.jenis == 'bug' %}
+                                <span class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">🪲 Bug</span>
+                            {% else %}
+                                <span class="bg-green-100 text-green-700 text-xs font-bold px-2.5 py-1 rounded-full">🚀 Saran</span>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-gray-600 text-sm mt-2 whitespace-pre-wrap leading-relaxed">{{ f.pesan }}</p>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-span-full bg-gray-50 border border-dashed border-gray-300 rounded-xl p-8 text-center">
+                        <p class="text-gray-500 italic">Belum ada laporan atau saran yang masuk.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // Mengambil data JSON dari Jinja Backend
+        const statusLabels = JSON.parse('{{ chart_status_labels | safe }}');
+        const statusData = JSON.parse('{{ chart_status_data | safe }}');
+
+        const userLabels = JSON.parse('{{ chart_user_labels | safe }}');
+        const userData = JSON.parse('{{ chart_user_data | safe }}');
+
+        // 1. Render Doughnut Chart (Sukses vs Gagal)
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusData,
+                    backgroundColor: [
+                        '#10B981', // Hijau untuk SUCCESS (Bisa urutan berubah tergantung DB, chart.js akan menyesuaikan legend)
+                        '#EF4444', // Merah untuk FAILED
+                        '#F59E0B'  // Kuning untuk warning/lainnya
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // 2. Render Bar Chart (User Teraktif)
+        const ctxUser = document.getElementById('userChart').getContext('2d');
+        new Chart(ctxUser, {
+            type: 'bar',
+            data: {
+                labels: userLabels,
+                datasets: [{
+                    label: 'Total Deployment',
+                    data: userData,
+                    backgroundColor: '#3B82F6', // Biru Tailwind
+                    borderRadius: 6, // Biar bar-nya tumpul keren
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

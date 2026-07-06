@@ -8,19 +8,26 @@
 </head>
 <body class="bg-gray-50 min-h-screen text-gray-800 font-sans">
 
-    <!-- Navbar -->
-    <nav class="bg-blue-600 text-white shadow-md">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="text-2xl font-bold tracking-wider">🚀 Deployin</div>
-            <div class="flex items-center space-x-4">
-                <a href="/dashboard" class="bg-blue-800 hover:bg-blue-900 px-3 py-1 rounded text-sm transition">
-                    &larr; Kembali ke Dashboard
-                </a>
-            </div>
-        </div>
-    </nav>
+<!-- Navbar Modern (SAMA SEPERTI DI DASHBOARD) -->
+<nav class="bg-blue-600 text-white shadow-md relative z-50">
+    <div class="container mx-auto px-6 py-3 flex justify-between items-center">
 
-    <main class="container mx-auto px-6 py-10">
+        <a href="/dashboard"
+           class="flex items-center space-x-2 text-2xl font-bold tracking-wider hover:opacity-90 transition">
+            <span>🚀</span>
+            <span>Deployin</span>
+        </a>
+
+        <!-- Dropdown Profil Simple untuk halaman Admin -->
+        <div class="flex items-center space-x-4">
+            <a href="/dashboard" class="bg-blue-800 hover:bg-blue-900 px-4 py-2 rounded font-medium transition text-sm">
+                &larr; Ke Dashboard
+            </a>
+        </div>
+    </div>
+</nav>
+
+<main class="container mx-auto px-6 py-10">
         <!-- Notifikasi Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}

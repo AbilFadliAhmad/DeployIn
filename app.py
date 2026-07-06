@@ -3,7 +3,10 @@ from flask import request, render_template, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import bcrypt
 import paramiko
-from models import app, db, User, Template
+from models import app, db, User, Feedback, DeploymentLog, Template
+import json
+from sqlalchemy import func
+import textwrap
 
 # --- KONFIGURASI FLASK-LOGIN ---
 login_manager = LoginManager()
@@ -82,18 +85,18 @@ def get_template(template_id):
 @login_required
 def execute_deploy():
     data = request.json
-    print(data)
-    return
+    template_id = data.get('template_id')
     ip = data.get('ip')
     password = data.get('password')
     github_link = data.get('github_link')
     perintah_mentah = data.get('perintah')
     port = data.get('port', '')
     kill_port = data.get('kill_port', False)  # Menangkap perintah dari kotak dialog
-
+    env_content = data.get('env', '').strip()
+    domain = data.get('domain', '').strip()  # Ambil input domain baru
     username = data.get('username', 'root')
 
-    if not all([ip, password, github_link, perintah_mentah]):
+    if not all([ip, password, github_link, perintah_mentah, port]):
         return jsonify({'status': 'error', 'log': 'Semua field utama harus diisi!'}), 400
 
     # 1. LOGIKA PEMBENTUKAN TARGET DIR
@@ -116,10 +119,54 @@ def execute_deploy():
         # "|| true" digunakan agar script tidak error jika port ternyata kosong
         perintah_awal = f"fuser -k {port}/tcp || true ; "
 
-    # 3. MENGGANTI SEMUA VARIABEL DI TEMPLATE
+    # 3. KUSTOMISASI PEMBUATAN FILE .ENV OTOMATIS
+    perintah_env = ""
+    if env_content:
+        # Menggunakan ./.env agar file dibuat di dalam folder apa pun yang sedang aktif (CD) saat itu
+        env_aman = env_content.replace("'", "'\\''")
+        perintah_env = f"\necho '{env_aman}' > ./.env\n"
+
+    # 4. LOGIKA BARU: OTOMASI NGINX REVERSE PROXY
+    if domain:
+        port_bind = f"127.0.0.1:{port}"
+
+        # Format string Nginx biasa, biarkan lekukannya rapi mengikuti Python Anda
+        teks_konfigurasi_nginx = f"""server {{
+                    listen 80;
+                    server_name {domain};
+
+                    location / {{
+                        proxy_pass http://127.0.0.1:{port};
+                        proxy_set_header Host \$host;
+                        proxy_set_header X-Real-IP \$remote_addr;
+                        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                        proxy_set_header X-Forwarded-Proto \$scheme;
+                    }}
+                }}"""
+        # Amankan tanda petik satu (') jika ada di teks konfigurasi
+        nginx_aman = teks_konfigurasi_nginx.replace("'", "'\\''")
+
+        # Kita gunakan echo untuk menulis file ke sites-available. Dijamin tidak akan memicu error EOF!
+        perintah_nginx = f"""
+                    sudo apt install nginx -y || true
+                    sudo mkdir -p /etc/nginx/sites-available
+                    sudo echo '{nginx_aman}' | sudo tee /etc/nginx/sites-available/{target_dir} > /dev/null
+                    sudo ln -sf /etc/nginx/sites-available/{target_dir} /etc/nginx/sites-enabled/
+                    sudo rm -f /etc/nginx/sites-enabled/default || true
+                    sudo systemctl restart nginx
+                """
+    else:
+        # Jika domain KOSONG, gunicorn langsung dibuka ke publik, Nginx dikosongkan (string kosong)
+        port_bind = f"0.0.0.0:{port}"
+        perintah_nginx = "true"
+
+    # 5. MENGGANTI VARIABEL DI TEMPLATE PERINTAH
     perintah_siap_eksekusi = perintah_mentah.replace('{github_link}', github_link)
     perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{target_dir}', target_dir)
     perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{port}', str(port))
+    perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{env}', perintah_env)
+    perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{port_bind}', port_bind)
+    perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{nginx_configuration}', perintah_nginx)
 
     # Gabungkan perintah matikan port dengan perintah template
     perintah_final = perintah_awal + perintah_siap_eksekusi
@@ -129,6 +176,7 @@ def execute_deploy():
 
     try:
         ssh.connect(hostname=ip, port=22, username=username, password=password, timeout=10)
+        status_deploy = 'success'
         
         # Eksekusi perintah final di VPS
         stdin, stdout, stderr = ssh.exec_command(perintah_final)
@@ -149,11 +197,22 @@ def execute_deploy():
         })
 
     except paramiko.AuthenticationException:
+        status_deploy = 'fail'
         return jsonify({'status': 'error', 'log': 'Autentikasi gagal. Periksa IP atau Password VPS.'})
     except Exception as e:
+        status_deploy = 'fail'
         return jsonify({'status': 'error', 'log': f'Terjadi kesalahan koneksi SSH: {str(e)}'})
     finally:
         ssh.close()
+        log_aktivitas = DeploymentLog(
+            user_id=current_user.id,
+            status=status_deploy,
+            github_link=github_link,
+            app=target_dir,
+            template_id=template_id
+        )
+        db.session.add(log_aktivitas)
+        db.session.commit()
 
 # --- RUTE MANAJEMEN TEMPLATE ---
 @app.route('/manage-templates', methods=['GET', 'POST'])
@@ -236,6 +295,130 @@ def delete_template(id):
     return redirect(url_for('manage_templates'))
 
 
+# --- RUTE MANAJEMEN USER (KHUSUS ADMIN) ---
+@app.route('/manage-users', methods=['GET', 'POST'])
+@login_required
+def manage_users():
+    # Keamanan Ganda: Cek apakah yang akses benar-benar admin
+    if current_user.role != 'admin':
+        flash('Akses Ditolak! Halaman ini hanya untuk Administrator.', 'error')
+        return redirect(url_for('dashboard'))
+
+    # Jika Admin mengirim form (Tambah User Baru)
+    if request.method == 'POST':
+        new_username = request.form.get('username')
+        new_password = request.form.get('password')
+        new_role = request.form.get('role', 'user')  # Default 'user'
+
+        # Cek apakah username sudah ada di database
+        user_exists = User.query.filter_by(username=new_username).first()
+
+        if user_exists:
+            flash(f'Gagal! Username "{new_username}" sudah digunakan.', 'error')
+        elif not new_username or not new_password:
+            flash('Gagal! Username dan password harus diisi.', 'error')
+        else:
+            # Enkripsi sandi sebelum disimpan
+            hashed_pw = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            new_user = User(username=new_username, password_hash=hashed_pw, role=new_role)
+            db.session.add(new_user)
+            db.session.commit()
+            flash(f'Berhasil! Akun baru "{new_username}" telah ditambahkan.', 'success')
+
+        return redirect(url_for('manage_users'))
+
+    # Mengambil semua daftar user dari database (kecuali dirinya sendiri opsional, tapi di sini kita tampilkan semua)
+    users = User.query.all()
+    return render_template('manage_users.html', users=users)
+
+
+# --- RUTE HAPUS USER ---
+@app.route('/delete-user/<int:id>', methods=['POST'])
+@login_required
+def delete_user(id):
+    if current_user.role != 'admin':
+        flash('Akses Ditolak!', 'error')
+        return redirect(url_for('dashboard'))
+
+    user_to_delete = User.query.get_or_404(id)
+
+    # Proteksi: Admin tidak boleh menghapus akunnya sendiri
+    if user_to_delete.id == current_user.id:
+        flash('Anda tidak dapat menghapus akun Anda sendiri!', 'error')
+    else:
+        # Menghapus user
+        # (Secara otomatis akan menghapus template miliknya jika di model diatur cascade,
+        # tapi jika error karena foreign key, kita manual hapus templatenya dulu)
+        Template.query.filter_by(user_id=user_to_delete.id).delete()
+
+        db.session.delete(user_to_delete)
+        db.session.commit()
+        flash(f'Akun "{user_to_delete.username}" berhasil dihapus.', 'success')
+
+    return redirect(url_for('manage_users'))
+
+@app.route('/kirim-feedback', methods=['GET', 'POST'])
+@login_required
+def kirim_feedback():
+    if request.method == 'POST':
+        jenis = request.form.get('jenis')
+        pesan = request.form.get('pesan')
+
+        if not jenis or not pesan:
+            flash('Gagal! Semua kolom wajib diisi.', 'error')
+            return redirect(url_for('kirim_feedback'))
+
+        # Simpan ke database
+        baru_feedback = Feedback(user_id=current_user.id, jenis=jenis, pesan=pesan)
+        db.session.add(baru_feedback)
+        db.session.commit()
+
+        flash('Terima kasih! Laporan/saran Anda berhasil dikirim ke Admin.', 'success')
+        return redirect(url_for('dashboard')) # Alihkan kembali ke dashboard setelah sukses
+
+    return render_template('kirim_feedback.html')
+
+
+# --- RUTE ANALISA & FEEDBACK (KHUSUS ADMIN) ---
+@app.route('/analisa-aplikasi')
+@login_required
+def analisa_aplikasi():
+    if current_user.role != 'admin':
+        flash('Akses Ditolak! Halaman ini hanya untuk Administrator.', 'error')
+        return redirect(url_for('dashboard'))
+
+    # 1. Ambil Data Masukan (Feedback) urut dari yang paling baru
+    semua_feedback = Feedback.query.order_by(Feedback.tanggal.desc()).all()
+
+    # 2. Agregasi Data Grafik: Rasio Sukses vs Gagal
+    status_counts = db.session.query(DeploymentLog.status, func.count(DeploymentLog.id)) \
+        .group_by(DeploymentLog.status).all()
+
+    chart_status_labels = [row[0].upper() for row in status_counts]
+    chart_status_data = [row[1] for row in status_counts]
+
+    # 3. Agregasi Data Grafik: Ambil Top 5 User Teraktif
+    top_5_users = db.session.query(User.username, func.count(DeploymentLog.id)) \
+        .join(DeploymentLog) \
+        .group_by(User.id) \
+        .order_by(func.count(DeploymentLog.id).desc()) \
+        .limit(5).all()
+
+    # Format data untuk Chart.js grafik batang
+    chart_user_labels = [row[0] for row in top_5_users]
+    chart_user_data = [row[1] for row in top_5_users]
+
+    # Format data untuk list HTML Top 5 (dikirim dalam bentuk list dari dict)
+    top_users_list = [{"username": row[0], "total": row[1]} for row in top_5_users]
+
+    return render_template('analisa_aplikasi.html',
+                           feedbacks=semua_feedback,
+                           chart_status_labels=json.dumps(chart_status_labels),
+                           chart_status_data=json.dumps(chart_status_data),
+                           chart_user_labels=json.dumps(chart_user_labels),
+                           chart_user_data=json.dumps(chart_user_data),
+                           top_users=top_users_list)  # Kirim variabel baru ini
+
 # --- JALANKAN APLIKASI & AUTO SETUP DATABASE ---
 if __name__ == '__main__':
     # 1. Buka konteks aplikasi agar bisa berinteraksi dengan database
@@ -247,24 +430,36 @@ if __name__ == '__main__':
         if not User.query.first():
             print("Database kosong terdeteksi. Memulai proses seeding...")
 
-            # Buat password (menggunakan bcrypt yang sudah di-import di atas)
+            # 1. Buat password hash (Sandi: 123)
             hashed_pw = bcrypt.hashpw(b'123', bcrypt.gensalt()).decode('utf-8')
 
-            # Buat User Admin
+            # 2. Buat User Admin
             admin = User(username='admin', password_hash=hashed_pw, role='admin')
             db.session.add(admin)
 
-            # Buat Template Global
+            # 3. Daftar nama user yang ingin ditambahkan
+            daftar_nama = [
+                'abdul', 'wildan', 'galang', 'fadli', 'mukaim', 'fachrul',
+                'satrio', 'huda', 'alana', 'yafi', 'alfan', 'bayu',
+                'riswan', 'ilham', 'fardhan', 'ridho', 'leo', 'abrar'
+            ]
+
+            # 4. Looping untuk membuat object User secara massal
+            for nama in daftar_nama:
+                baru = User(username=nama, password_hash=hashed_pw, role='user')
+                db.session.add(baru)
+
+            # 5. Buat Template Global
             template = Template(
                 nama_teknologi='Python Flask (Gunicorn)',
-                perintah_default='cd {target_dir} && git pull origin main && source venv/bin/activate && pip install -r requirements.txt && sudo systemctl restart gunicorn',
+                perintah_default='mkdir -p /deployin && cd /deployin && mkdir -p flask && cd flask && rm -rf {target_dir} && git clone {github_link} {target_dir} && sudo apt update && sudo apt upgrade -y && sudo apt install python3-pip python3-venv -y && cd {target_dir} && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && pip install gunicorn && sudo ufw allow {port} && gunicorn --bind 0.0.0.0:{port} app:app --daemon',
                 is_global=True
             )
             db.session.add(template)
 
-            # Simpan perubahan ke database
+            # 6. Simpan semua data sekaligus ke database
             db.session.commit()
-            print("Data awal (seeding) berhasil dibuat! Akun 'admin' dengan password '123' siap digunakan.")
+            print(f"Data awal berhasil dibuat! Admin dan {len(daftar_nama)} user telah ditambahkan.")
         else:
             print("Database sudah berisi data. Melewati proses seeding.")
 

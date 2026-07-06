@@ -1,1 +1,38 @@
+# Lingkungan Virtual (Virtual Environment)
+# Jangan pernah commit folder environment ke Git
 .venv
+venv
+ENV
+env
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# Konfigurasi Instance & Data Rahasia Flask
+# Biasanya berisi database lokal (seperti SQLite) atau kunci rahasia
+instance/
+*.sqlite
+*.sqlite3
+
+# Cache dan Coverage Tes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribusi & Build
+build/
+dist/
+*.egg-info
+*.egg
+
+# File OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# File Log
+*.log
