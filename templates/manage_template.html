@@ -51,17 +51,35 @@
                         <input type="text" id="nama_teknologi" name="nama_teknologi" placeholder="Cth: Laravel + Docker" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">Perintah Eksekusi</label>
-                        <textarea id="perintah_default" name="perintah_default" rows="6" placeholder="cd {target_dir} && git pull origin main" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500 font-mono text-sm" required></textarea>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-gray-700">Perintah Eksekusi</label>
 
-                        <!-- TOMBOL HELPER -->
-                        <div class="mt-2 flex space-x-2">
-                            <button type="button" onclick="insertTag('{target_dir}')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-1 px-2 rounded">+{target_dir}</button>
-                            <button type="button" onclick="insertTag('{port}')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-1 px-2 rounded">+{port}</button>
-                            <button type="button" onclick="insertTag('{github_link}')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-1 px-2 rounded">+{github_link}</button>
+                        <textarea id="perintah_default" name="perintah_default" rows="6"
+                            placeholder="cd {target_dir} && git pull origin main && gunicorn --bind {port_bind} app:app"
+                            class="w-full border border-gray-300 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm bg-gray-50 text-gray-800 shadow-sm transition"
+                            required></textarea>
+
+                        <div>
+                            <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Variabel Otomatis (Klik untuk menyisipkan):</p>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button type="button" onclick="insertTag('{target_dir}')" class="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-blue-200 transition-all transform active:scale-95">
+                                    <span class="text-blue-400 font-bold">+</span> <span>{target_dir}</span>
+                                </button>
+                                <button type="button" onclick="insertTag('{github_link}')" class="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-blue-200 transition-all transform active:scale-95">
+                                    <span class="text-blue-400 font-bold">+</span> <span>{github_link}</span>
+                                </button>
+                                <button type="button" onclick="insertTag('{port}')" class="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-blue-200 transition-all transform active:scale-95">
+                                    <span class="text-blue-400 font-bold">+</span> <span>{port}</span>
+                                </button>
+
+                                <button type="button" onclick="insertTag('{port_bind}')" class="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-indigo-200 transition-all transform active:scale-95">
+                                    <span class="text-indigo-400 font-bold">+</span> <span>{port_bind}</span>
+                                </button>
+                                <button type="button" onclick="insertTag('{nginx_configuration}')" class="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-indigo-200 transition-all transform active:scale-95">
+                                    <span class="text-indigo-400 font-bold">+</span> <span>{nginx_configuration}</span>
+                                </button>
+                            </div>
                         </div>
-                        <p class="text-xs text-gray-500 mt-2">Klik tombol di atas untuk menyisipkan variabel otomatis ke dalam kode.</p>
                     </div>
 
                     <!-- Pilihan Global hanya muncul jika Admin -->
@@ -150,7 +168,21 @@
         // Fungsi menyisipkan tag ke dalam textarea
         function insertTag(tag) {
             const textarea = document.getElementById('perintah_default');
-            textarea.value += tag;
+
+            // Ambil posisi awal dan akhir kursor saat ini
+            const startPos = textarea.selectionStart;
+            const endPos = textarea.selectionEnd;
+            const currentText = textarea.value;
+
+            // Sisipkan tag di antara teks sebelum kursor dan teks setelah kursor
+            textarea.value = currentText.substring(0, startPos) + tag + currentText.substring(endPos, currentText.length);
+
+            // Pindahkan posisi kursor tepat setelah tag yang baru saja dimasukkan
+            const newCursorPos = startPos + tag.length;
+            textarea.selectionStart = newCursorPos;
+            textarea.selectionEnd = newCursorPos;
+
+            // Kembalikan fokus ke textarea
             textarea.focus();
         }
 
