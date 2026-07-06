@@ -119,13 +119,24 @@
                             {% if u.id == current_user.id %}
                             <span class="text-gray-400 text-xs italic font-medium">Akun Anda</span>
                             {% else %}
-                            <form action="/delete-user/{{ u.id }}" method="POST"
-                                  onsubmit="return confirm('Peringatan: Menghapus user juga akan menghapus SEMUA template pribadi buatan user ini. Lanjutkan?');">
-                                <button type="submit"
-                                        class="text-red-500 hover:text-red-700 font-bold px-3 py-1 rounded border border-red-100 hover:bg-red-50 transition">
-                                    Hapus
+                            <div class="flex items-center justify-center space-x-2">
+                                <button type="button"
+                                        onclick="openEditModal(this)"
+                                        data-id="{{ u.id }}"
+                                        data-username="{{ u.username }}"
+                                        data-role="{{ u.role }}"
+                                        class="text-amber-600 hover:text-amber-700 font-bold px-3 py-1 rounded border border-amber-100 hover:bg-amber-50 transition text-xs">
+                                    Edit
                                 </button>
-                            </form>
+
+                                <form action="/delete-user/{{ u.id }}" method="POST"
+                                      onsubmit="return confirm('Peringatan: Menghapus user juga akan menghapus SEMUA template pribadi buatan user ini. Lanjutkan?');">
+                                    <button type="submit"
+                                            class="text-red-500 hover:text-red-700 font-bold px-3 py-1 rounded border border-red-100 hover:bg-red-50 transition text-xs">
+                                        Hapus
+                                    </button>
+                                </form>
+                            </div>
                             {% endif %}
                         </td>
                     </tr>
@@ -135,7 +146,77 @@
             </div>
         </div>
 
+        <div id="editUserModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-100">
+                <div class="bg-amber-600 text-white px-6 py-4 flex justify-between items-center">
+                    <h3 class="font-bold flex items-center space-x-2">
+                        <span>✏️</span> <span>Edit Data Pengguna</span>
+                    </h3>
+                    <button type="button" onclick="closeEditModal()" class="text-white hover:opacity-70 font-bold text-xl">&times;</button>
+                </div>
+
+                <form id="editUserForm" action="" method="POST" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1 text-gray-700">Username</label>
+                        <input type="text" id="edit_username" name="username"
+                               class="w-full border border-gray-300 px-4 py-2 rounded-xl focus:ring-2 focus:ring-amber-500 bg-gray-50 text-gray-800 font-medium"
+                               required>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold mb-1 text-gray-700">Password Baru</label>
+                        <input type="password" id="edit_password" name="password" placeholder="Kosongkan jika tidak ingin diubah..."
+                               class="w-full border border-gray-300 px-4 py-2 rounded-xl focus:ring-2 focus:ring-amber-500 bg-gray-50 text-gray-800">
+                        <p class="text-[11px] text-gray-400 mt-1">Keamanan: Biarkan kolom ini kosong jika user tidak meminta ganti password.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold mb-1 text-gray-700">Hak Akses (Role)</label>
+                        <select id="edit_role" name="role"
+                                class="w-full border border-gray-300 px-4 py-2 rounded-xl focus:ring-2 focus:ring-amber-500 bg-gray-50 text-gray-800 font-medium"
+                                required>
+                            <option value="user">User Biasa</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-4 flex justify-end space-x-3 border-t border-gray-100">
+                        <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800">Batal</button>
+                        <button type="submit" class="px-5 py-2 text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow transition">Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 </main>
+<script>
+    function openEditModal(button) {
+        // 1. Ambil data dari atribut tombol yang diklik
+        const userId = button.getAttribute('data-id');
+        const username = button.getAttribute('data-username');
+        const role = button.getAttribute('data-role');
+
+        // 2. Masukkan data ke dalam field input modal
+        document.getElementById('edit_username').value = username;
+        document.getElementById('edit_role').value = role;
+
+        // Kosongkan field password demi keamanan (menandakan opsional)
+        document.getElementById('edit_password').value = '';
+
+        // 3. Ubah Action Form secara dinamis mengarah ke ID user terkait
+        document.getElementById('editUserForm').action = `/update-user/${userId}`;
+
+        // 4. Munculkan modal ke layar
+        const modal = document.getElementById('editUserModal');
+        modal.classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+        // Sembunyikan kembali modal
+        const modal = document.getElementById('editUserModal');
+        modal.classList.add('hidden');
+    }
+</script>
 </body>
 </html>
