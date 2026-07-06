@@ -90,7 +90,7 @@ def execute_deploy():
     password = data.get('password')
     github_link = data.get('github_link')
     perintah_mentah = data.get('perintah')
-    port = data.get('port', '')
+    port = str(data.get('port','')).strip()  # Pastikan bertipe string dan bersih dari spasi
     kill_port = data.get('kill_port', False)  # Menangkap perintah dari kotak dialog
     env_content = data.get('env', '').strip()
     domain = data.get('domain', '').strip()  # Ambil input domain baru
@@ -98,6 +98,32 @@ def execute_deploy():
 
     if not all([ip, password, github_link, perintah_mentah, port]):
         return jsonify({'status': 'error', 'log': 'Semua field utama harus diisi!'}), 400
+
+    # ─── VALIDASI PROTEKSI PORT VITAL VPS (BACKEND PROTECTION) ───
+    # Daftar port kritis sistem, panel admin, proxy, dan database utama
+    PORT_KRITIS = {
+        "22": "SSH (Akses Remote Utama VPS)",
+        "80": "HTTP Web Server (Nginx / Apache)",
+        "443": "HTTPS Web Server Secure (SSL/TLS)",
+        "3306": "MySQL / MariaDB Database",
+        "5432": "PostgreSQL Database",
+        "6379": "Redis Cache System",
+        "27017": "MongoDB Database",
+        "9000": "PHP-FPM / Port Utama Management Service",
+        "9050": "Tor / Proxy Core Service",
+        "8888": "Web Panel Admin (aaPanel / CyberPanel)",
+        "2083": "cPanel Web Panel",
+        "2087": "WHM Admin Panel"
+    }
+
+    if port in PORT_KRITIS:
+        pesan_blokir = (
+            f"[DEPLOYIN SECURITY] ❌ Eksekusi dibatalkan! "
+            f"Port {port} dideteksi sebagai port vital VPS untuk layanan: {PORT_KRITIS[port]}. "
+            f"Port ini dilarang keras untuk dimatikan (kill) demi menjaga stabilitas server."
+        )
+        return jsonify({'status': 'error', 'log': pesan_blokir}), 403
+    # ─────────────────────────────────────────────────────────────
 
     # 1. LOGIKA PEMBENTUKAN TARGET DIR
     # Mengambil username dan nama repo dari link GitHub
@@ -148,12 +174,14 @@ def execute_deploy():
 
         # Kita gunakan echo untuk menulis file ke sites-available. Dijamin tidak akan memicu error EOF!
         perintah_nginx = f"""
-                    sudo apt install nginx -y || true
+                    sudo apt-get install nginx -y || true
                     sudo mkdir -p /etc/nginx/sites-available
+                    sudo mkdir -p /etc/nginx/sites-enabled
                     sudo echo '{nginx_aman}' | sudo tee /etc/nginx/sites-available/{target_dir} > /dev/null
-                    sudo ln -sf /etc/nginx/sites-available/{target_dir} /etc/nginx/sites-enabled/
+                    sudo rm -f /etc/nginx/sites-enabled/{target_dir}
+                    sudo ln -sf /etc/nginx/sites-available/{target_dir} /etc/nginx/sites-enabled/{target_dir}
                     sudo rm -f /etc/nginx/sites-enabled/default || true
-                    sudo systemctl restart nginx
+                    sudo systemctl restart nginx || sudo service nginx restart
                 """
     else:
         # Jika domain KOSONG, gunicorn langsung dibuka ke publik, Nginx dikosongkan (string kosong)
@@ -170,6 +198,7 @@ def execute_deploy():
 
     # Gabungkan perintah matikan port dengan perintah template
     perintah_final = perintah_awal + perintah_siap_eksekusi
+    print(perintah_final)
 
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -190,8 +219,6 @@ def execute_deploy():
 
         if err:
             full_log += f"--- PESAN ERROR / PERINGATAN ---\n{err}"
-
-        print('fullLog: ', full_log)
 
         return jsonify({
             'status': 'success' if exit_status == 0 else 'warning',
