@@ -6,7 +6,7 @@ import paramiko
 from models import app, db, User, Feedback, DeploymentLog, Template
 import json
 from sqlalchemy import func
-import textwrap
+from werkzeug.security import generate_password_hash
 
 # --- KONFIGURASI FLASK-LOGIN ---
 login_manager = LoginManager()
@@ -186,10 +186,12 @@ def execute_deploy():
         err = stderr.read().decode('utf-8')
 
         full_log = f"--- VARIABEL OTOMATIS ---\nTarget Dir: {target_dir}\nPort: {port}\n\n"
-        full_log += f"--- OUTPUT TANGGAPAN ---\n{out}\n"
+        full_log += f"--- OUTPUT TANGGAPAN ---\n{out}\n\n\n"
 
         if err:
             full_log += f"--- PESAN ERROR / PERINGATAN ---\n{err}"
+
+        print('fullLog: ', full_log)
 
         return jsonify({
             'status': 'success' if exit_status == 0 else 'warning',
@@ -411,13 +413,79 @@ def analisa_aplikasi():
     # Format data untuk list HTML Top 5 (dikirim dalam bentuk list dari dict)
     top_users_list = [{"username": row[0], "total": row[1]} for row in top_5_users]
 
+    # === DATA BARU: LOG DEPLOYMENT GLOBAL UNTUK TABEL & MODAL ===
+    logs_mentah = DeploymentLog.query.order_by(DeploymentLog.tanggal.desc()).all()
+
+    logs_list = []
+    for log in logs_mentah:
+        logs_list.append({
+            "id": log.id,
+            "username": log.user.username if log.user else "Unknown",
+            "app": log.app,
+            "github": log.github_link or "-",
+            "status": log.status.upper(),
+            "teknologi": log.template.nama_teknologi if log.template else "Custom Template",
+            "tanggal": log.tanggal.strftime('%d %b %Y - %H:%M')
+        })
+
     return render_template('analisa_aplikasi.html',
                            feedbacks=semua_feedback,
                            chart_status_labels=json.dumps(chart_status_labels),
                            chart_status_data=json.dumps(chart_status_data),
                            chart_user_labels=json.dumps(chart_user_labels),
                            chart_user_data=json.dumps(chart_user_data),
-                           top_users=top_users_list)  # Kirim variabel baru ini
+                           top_users=top_users_list,
+                           deployment_logs_json=json.dumps(logs_list))  # Variabel JSON baru
+
+
+# --- RUTE UPDATE DATA PENGGUNA (KHUSUS ADMIN) ---
+@app.route('/update-user/<int:user_id>', methods=['POST'])
+@login_required
+def update_user(user_id):
+    # Proteksi ganda: Pastikan hanya admin yang bisa mengeksekusi
+    if current_user.role != 'admin':
+        flash('Akses Ditolak! Anda tidak memiliki izin untuk mengubah data.', 'error')
+        return redirect(url_for('dashboard'))
+
+    # Ambil data user dari database berdasarkan ID
+    user = User.query.get_or_404(user_id)
+
+    # Mencegah admin mengedit akunnya sendiri melalui rute ini (demi keamanan sesi)
+    if user.id == current_user.id:
+        flash('Untuk keamanan, ubah profil Anda melalui menu pengaturan akun.', 'error')
+        return redirect(url_for('manage_users'))  # Sesuaikan dengan nama fungsi rute manajemen Anda
+
+    # Ambil data dari form input modal
+    username_baru = request.form.get('username').strip()
+    role_baru = request.form.get('role')
+    password_baru = request.form.get('password')
+
+    # Validasi: Cek apakah username baru kembar dengan user lain di database
+    username_exist = User.query.filter(User.username == username_baru, User.id != user_id).first()
+    if username_exist:
+        flash(f'Gagal! Username "{username_baru}" sudah digunakan oleh orang lain.', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
+
+    try:
+        # 1. Update data dasar
+        user.username = username_baru
+        user.role = role_baru
+
+        # 2. Update password HANYA JIKA kolom password diisi oleh admin
+        if password_baru and password_baru.strip() != '':
+            user.password_hash = generate_password_hash(password_baru)
+            flash(f'Data akun {user.username} dan password berhasil diperbarui!', 'success')
+        else:
+            flash(f'Data akun {user.username} berhasil diperbarui (Tanpa ganti password).', 'success')
+
+        # Simpan perubahan ke database SQLite
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Terjadi kesalahan sistem saat memperbarui data: {str(e)}', 'error')
+
+    return redirect(request.referrer or url_for('dashboard'))
 
 # --- JALANKAN APLIKASI & AUTO SETUP DATABASE ---
 if __name__ == '__main__':
@@ -452,7 +520,7 @@ if __name__ == '__main__':
             # 5. Buat Template Global
             template = Template(
                 nama_teknologi='Python Flask (Gunicorn)',
-                perintah_default='mkdir -p /deployin && cd /deployin && mkdir -p flask && cd flask && rm -rf {target_dir} && git clone {github_link} {target_dir} && sudo apt update && sudo apt upgrade -y && sudo apt install python3-pip python3-venv -y && cd {target_dir} && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && pip install gunicorn && sudo ufw allow {port} && gunicorn --bind 0.0.0.0:{port} app:app --daemon',
+                perintah_default='mkdir -p /deployin && cd /deployin && mkdir -p flask && cd flask && rm -rf {target_dir} && git clone {github_link} {target_dir} && cd {target_dir} && {env} sudo apt update && sudo apt upgrade -y && sudo apt install python3-pip python3-venv nginx -y && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && pip install gunicorn && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw allow {port} && gunicorn --bind {port_bind} app:app --daemon && {nginx_configuration}',
                 is_global=True
             )
             db.session.add(template)
