@@ -71,7 +71,7 @@ __Access the dashboard via http://localhost:5000__
 
 3. **Configure Payload:** 
    * **Input the target VPS IP and Password.
-   * **Paste the GitHub repository link.
+* **Paste the GitHub repository link.
    * **Define the specific Port (e.g., 4818) and custom Domain (e.g., app.yourdomain.com).
 
 4. **Deploy:**** Click "Deploy" and watch the live terminal stream the SSH execution process. Deployin will automatically handle port clearing, Nginx routing, and service restarts.
