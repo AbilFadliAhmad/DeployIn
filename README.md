@@ -65,23 +65,21 @@ To get a local copy up and running, follow these simple steps.
 __Access the dashboard via http://localhost:5000__
 
 💡 Usage
-Log In: Access the Deployin dashboard using your user or admin credentials.
+1. **Log In:** Access the Deployin dashboard using your user or admin credentials.
 
-Select Template: Choose a deployment template (e.g., Python Flask, Node.js).
+2. **Select Template:** Choose a deployment template (e.g., Python Flask, Node.js).
 
-Configure Payload: * Input the target VPS IP and Password.
+3. **Configure Payload:** * Input the target VPS IP and Password.
+      Paste the GitHub repository link.
+      Define the specific Port (e.g., 4818) and custom Domain (e.g., app.yourdomain.com).
 
-Paste the GitHub repository link.
-
-Define the specific Port (e.g., 4818) and custom Domain (e.g., app.yourdomain.com).
-
-Deploy: Click "Deploy" and watch the live terminal stream the SSH execution process. Deployin will automatically handle port clearing, Nginx routing, and service restarts.
+4. **Deploy:**** Click "Deploy" and watch the live terminal stream the SSH execution process. Deployin will automatically handle port clearing, Nginx routing, and service restarts.
 
 🔒 Security Notice
 Deployin uses the Paramiko library to establish SSH connections. It is highly recommended to host Deployin on a secured, private network or behind a strict firewall, and always use HTTPS in production to protect VPS credentials transmitted during deployment.
 
 📝 License
-Distributed under the MIT License. See LICENSE for more information.
+Distributed under the **MIT License**. See LICENSE for more information.
 
 👨‍💻 Author
 Abil Fadli Ahmad Computer Science Student | Software Engineer GitHub: @AbilFadliAhmad
