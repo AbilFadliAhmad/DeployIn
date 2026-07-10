@@ -402,6 +402,8 @@ def execute_deploy():
             f"{out}\n"
         )
 
+
+
         if err.strip() and exit_status != 0:
             full_log += (
                 "\n--- ERROR / WARNING ---\n"
@@ -431,19 +433,31 @@ def execute_deploy():
             "log": f"Terjadi kesalahan: {str(e)}"
         })
 
+
+
     finally:
-        try:
-            # if script_path and os.path.exists(script_path):
-                # os.remove(script_path)
+
+        # try:
+        #
+        #     if script_path and os.path.exists(script_path):
+        #         os.remove(script_path)
+        # 
         # except Exception:
+        #
         #     pass
 
         log = DeploymentLog(
+
             user_id=current_user.id,
+
             status=status_deploy,
+
             github_link=github_link,
+
             app=target_dir,
+
             template_id=template_id
+
         )
 
         db.session.add(log)
