@@ -434,7 +434,7 @@ def execute_deploy():
     finally:
         try:
             if script_path and os.path.exists(script_path):
-                os.remove(script_path)
+                # os.remove(script_path)
         except Exception:
             pass
 
