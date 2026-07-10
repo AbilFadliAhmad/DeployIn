@@ -174,7 +174,6 @@ def execute_deploy():
 
         # Kita gunakan echo untuk menulis file ke sites-available. Dijamin tidak akan memicu error EOF!
         perintah_nginx = f"""
-                    sudo apt-get install nginx -y || true
                     sudo mkdir -p /etc/nginx/sites-available
                     sudo mkdir -p /etc/nginx/sites-enabled
                     sudo echo '{nginx_aman}' | sudo tee /etc/nginx/sites-available/{target_dir} > /dev/null
