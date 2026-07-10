@@ -7,6 +7,8 @@ from models import app, db, User, Feedback, DeploymentLog, Template
 import json
 from sqlalchemy import func
 from werkzeug.security import generate_password_hash
+import subprocess
+import socket
 
 # --- KONFIGURASI FLASK-LOGIN ---
 login_manager = LoginManager()
@@ -78,8 +80,40 @@ def get_template(template_id):
 
     return jsonify({'status': 'error', 'message': 'Template tidak ditemukan'}), 404
 
+def is_local_target(target_ip: str) -> bool:
+    """
+    Mengecek apakah IP tujuan adalah server yang sama.
+    """
 
-# --- API UNTUK MENGEKSEKUSI SSH (TAHAP 4) ---
+    try:
+        target_ip = target_ip.strip()
+
+        local_ips = {
+            "127.0.0.1",
+            "localhost",
+        }
+
+        # Semua IP dari hostname
+        try:
+            local_ips.update(socket.gethostbyname_ex(socket.gethostname())[2])
+        except:
+            pass
+
+        # Semua IP dari interface jaringan
+        result = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True,
+            text=True
+        )
+
+        for ip in result.stdout.split():
+            local_ips.add(ip.strip())
+
+        return target_ip in local_ips
+
+    except Exception:
+        return False
+
 # --- API UNTUK MENGEKSEKUSI SSH (TAHAP 4 & LOGIKA PORT) ---
 @app.route('/api/execute_deploy', methods=['POST'])
 @login_required
@@ -199,39 +233,102 @@ def execute_deploy():
     perintah_final = perintah_awal + perintah_siap_eksekusi
     print(perintah_final)
 
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh = None
 
     try:
-        ssh.connect(hostname=ip, port=22, username=username, password=password, timeout=10)
-        status_deploy = 'success'
-        
-        # Eksekusi perintah final di VPS
-        stdin, stdout, stderr = ssh.exec_command(perintah_final)
-        exit_status = stdout.channel.recv_exit_status()
 
-        out = stdout.read().decode('utf-8')
-        err = stderr.read().decode('utf-8')
+        status_deploy = "success"
 
-        full_log = f"--- VARIABEL OTOMATIS ---\nTarget Dir: {target_dir}\nPort: {port}\n\n"
-        full_log += f"--- OUTPUT TANGGAPAN ---\n{out}\n\n\n"
+        if is_local_target(ip):
+
+            deploy_mode = "LOCAL"
+
+            result = subprocess.run(
+                perintah_final,
+                shell=True,
+                executable="/bin/bash",
+                capture_output=True,
+                text=True
+            )
+
+            exit_status = result.returncode
+            out = result.stdout
+            err = result.stderr
+
+        else:
+
+            deploy_mode = "REMOTE"
+
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            ssh.connect(
+                hostname=ip,
+                port=22,
+                username=username,
+                password=password,
+                timeout=10
+            )
+
+            stdin, stdout, stderr = ssh.exec_command(perintah_final)
+
+            exit_status = stdout.channel.recv_exit_status()
+
+            out = stdout.read().decode("utf-8")
+            err = stderr.read().decode("utf-8")
+
+        full_log = (
+            f"--- DEPLOY MODE ---\n"
+            f"{deploy_mode}\n\n"
+            f"--- VARIABEL OTOMATIS ---\n"
+            f"Target Dir : {target_dir}\n"
+            f"Port       : {port}\n\n"
+            f"--- OUTPUT ---\n"
+            f"{out}\n"
+        )
 
         if err:
-            full_log += f"--- PESAN ERROR / PERINGATAN ---\n{err}"
+            full_log += (
+                "\n--- ERROR / WARNING ---\n"
+                f"{err}"
+            )
 
         return jsonify({
-            'status': 'success' if exit_status == 0 else 'warning',
-            'log': full_log
+            "status": "success" if exit_status == 0 else "warning",
+            "log": full_log
         })
 
+
+
     except paramiko.AuthenticationException:
-        status_deploy = 'fail'
-        return jsonify({'status': 'error', 'log': 'Autentikasi gagal. Periksa IP atau Password VPS.'})
+
+        status_deploy = "fail"
+
+        return jsonify({
+
+            "status": "error",
+
+            "log": "Autentikasi SSH gagal."
+
+        })
+
+
     except Exception as e:
-        status_deploy = 'fail'
-        return jsonify({'status': 'error', 'log': f'Terjadi kesalahan koneksi SSH: {str(e)}'})
+
+        status_deploy = "fail"
+
+        return jsonify({
+
+            "status": "error",
+
+            "log": f"Terjadi kesalahan: {str(e)}"
+
+        })
+
     finally:
-        ssh.close()
+        if ssh:
+            ssh.close()
+
         log_aktivitas = DeploymentLog(
             user_id=current_user.id,
             status=status_deploy,
