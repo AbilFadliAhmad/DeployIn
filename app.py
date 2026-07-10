@@ -433,10 +433,10 @@ def execute_deploy():
 
     finally:
         try:
-            if script_path and os.path.exists(script_path):
+            # if script_path and os.path.exists(script_path):
                 # os.remove(script_path)
-        except Exception:
-            pass
+        # except Exception:
+        #     pass
 
         log = DeploymentLog(
             user_id=current_user.id,
