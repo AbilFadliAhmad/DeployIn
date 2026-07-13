@@ -230,6 +230,73 @@ def run_remote_deploy(
 
 
 
+def execute_nginx(
+    domain,
+    port,
+    local,
+    ip=None,
+    username=None,
+    password=None
+):
+    """
+    Membuat konfigurasi nginx lalu reload.
+    """
+
+    config_name = domain.replace(".", "-")
+
+    script = f"""
+mkdir -p /etc/nginx/sites-available
+mkdir -p /etc/nginx/sites-enabled
+
+cat >/etc/nginx/sites-available/{config_name} <<EOF
+server {{
+    listen 80;
+    server_name {domain};
+
+    location / {{
+        proxy_pass http://127.0.0.1:{port};
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }}
+}}
+EOF
+
+ln -sfn \
+/etc/nginx/sites-available/{config_name} \
+/etc/nginx/sites-enabled/{config_name}
+
+rm -f /etc/nginx/sites-enabled/default || true
+
+nginx -t
+
+systemctl reload nginx
+"""
+
+    script_path = create_temp_deploy_script(script)
+    try:
+        if local:
+            result = run_local_deploy(
+                script_path,
+                password
+            )
+            return (
+                result.returncode,
+                result.stdout,
+                result.stderr
+            )
+        else:
+            return run_remote_deploy(
+                ip,
+                username,
+                password,
+                script_path
+            )
+    finally:
+        if os.path.exists(script_path):
+            os.remove(script_path)
 
 # --- API UNTUK MENGEKSEKUSI SSH (TAHAP 4 & LOGIKA PORT) ---
 @app.route('/api/execute_deploy', methods=['POST'])
@@ -307,35 +374,24 @@ def execute_deploy():
     if domain:
         port_bind = f"127.0.0.1:{port}"
 
-        perintah_nginx = f"""
-mkdir -p /etc/nginx/sites-available
-mkdir -p /etc/nginx/sites-enabled
+        nginx_status, nginx_out, nginx_err = execute_nginx(
+            domain=domain,
+            port=port,
+            local=is_local_target(ip),
+            ip=ip,
+            username=username,
+            password=password
+        )
 
-cat <<'EOF' > /etc/nginx/sites-available/{target_dir}
-server {{
-    listen 80;
-    server_name {domain};
+        if nginx_status != 0:
+            return jsonify({
+                "status": "error",
+                "log": nginx_err or nginx_out
+            })
 
-    location / {{
-        proxy_pass http://127.0.0.1:{port};
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }}
-}}
-EOF
-
-ln -sfn "/etc/nginx/sites-available/{target_dir}" "/etc/nginx/sites-enabled/{target_dir}"
-rm -f /etc/nginx/sites-enabled/default || true
-nginx -t
-systemctl reload nginx
-        """
     else:
         # Jika domain KOSONG, gunicorn langsung dibuka ke publik, Nginx dikosongkan (string kosong)
         port_bind = f"0.0.0.0:{port}"
-        perintah_nginx = "true"
 
     # 5. MENGGANTI VARIABEL DI TEMPLATE PERINTAH
     perintah_siap_eksekusi = perintah_mentah.replace('{github_link}', github_link)
@@ -343,7 +399,6 @@ systemctl reload nginx
     perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{port}', str(port))
     perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{env}', perintah_env)
     perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{port_bind}', port_bind)
-    perintah_siap_eksekusi = perintah_siap_eksekusi.replace('{nginx_configuration}', perintah_nginx)
 
     # Gabungkan perintah matikan port dengan perintah template
     perintah_final = perintah_awal + perintah_siap_eksekusi
@@ -351,7 +406,6 @@ systemctl reload nginx
     script_path = create_temp_deploy_script(perintah_final)
 
     check = validate_bash_script(script_path)
-    print('sebelumCHeck: ', check)
 
     if check.returncode != 0:
         os.remove(script_path)
@@ -360,7 +414,6 @@ systemctl reload nginx
             "status": "error",
             "log": check.stderr
         })
-    print('sesudahCheck')
 
     try:
 
@@ -378,7 +431,6 @@ systemctl reload nginx
             out = result.stdout
             err = result.stderr
         else:
-            print('remote: ', script_path)
             deploy_mode = "REMOTE"
             exit_status, out, err = run_remote_deploy(
                 ip,
@@ -386,6 +438,7 @@ systemctl reload nginx
                 password,
                 script_path
             )
+
 
         full_log = (
             f"--- DEPLOY MODE ---\n"
@@ -761,7 +814,7 @@ def init_database():
             # 5. Buat Template Global
             template = Template(
                 nama_teknologi='Python Flask (Gunicorn)',
-                perintah_default='pkill -f "gunicorn.*:{port}" || true && mkdir -p /deployin && cd /deployin && mkdir -p flask && cd flask && rm -rf {target_dir} && git clone {github_link} {target_dir} && cd {target_dir} && {env} sudo apt install python3-pip python3-venv nginx -y && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && pip install gunicorn && rm -rf gunicorn.conf.py && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw allow {port} && sudo ufw allow 22 && gunicorn --bind {port_bind} app:app --daemon && {nginx_configuration}',
+                perintah_default='pkill -f "gunicorn.*:{port}" || true && mkdir -p /deployin && cd /deployin && mkdir -p flask && cd flask && rm -rf {target_dir} && git clone {github_link} {target_dir} && cd {target_dir} && {env} sudo apt install python3-pip python3-venv nginx -y && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && pip install gunicorn && rm -rf gunicorn.conf.py && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw allow {port} && sudo ufw allow 22 && gunicorn --bind {port_bind} app:app --daemon',
                 is_global=True
             )
             db.session.add(template)
