@@ -332,8 +332,6 @@ rm -f /etc/nginx/sites-enabled/default || true
 nginx -t
 systemctl reload nginx
         """
-        print(perintah_nginx)
-        return jsonify({'status': 'error', 'log': perintah_awal}), 403
     else:
         # Jika domain KOSONG, gunicorn langsung dibuka ke publik, Nginx dikosongkan (string kosong)
         port_bind = f"0.0.0.0:{port}"
