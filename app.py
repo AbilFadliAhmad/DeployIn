@@ -955,8 +955,8 @@ def init_database():
                 nama_teknologi='Python Flask (Gunicorn)',
                 perintah_default='pkill -f "gunicorn.*:{port}" || true && mkdir -p /deployin && cd /deployin && mkdir -p flask && cd flask && rm -rf {target_dir} && git clone {github_link} {target_dir} && cd {target_dir} && {env} sudo apt install python3-pip python3-venv nginx -y && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && pip install gunicorn && rm -rf gunicorn.conf.py && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw allow {port} && sudo ufw allow 22',
                 is_global=True,
-                startup_command='gunicorn --bind {port_bind} app:app',
-                production_command='gunicorn --bind {port_bind} app:app --daemon'
+                startup_command='cd /deployin/flask/{target_dir} && source venv/bin/activate && gunicorn --bind {port_bind} app:app',
+                production_command='cd /deployin/flask/{target_dir} && source venv/bin/activate && gunicorn --bind {port_bind} app:app --daemon'
             )
             db.session.add(template)
 
