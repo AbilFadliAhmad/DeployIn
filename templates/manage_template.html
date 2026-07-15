@@ -40,9 +40,8 @@
         {% endwith %}
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
             <!-- KOLOM KIRI: Form Tambah/Edit Template -->
-            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-md border border-gray-100 h-fit">
+            <div class="lg:col-span-1 lg:order-1 order-2 bg-white p-6 rounded-xl shadow-md border border-gray-100 h-fit">
                 <h2 id="formTitle" class="text-xl font-bold mb-4 border-b pb-2">Buat Template Baru</h2>
 
                 <form id="templateForm" action="/manage-templates" method="POST" class="space-y-4">
@@ -51,35 +50,114 @@
                         <input type="text" id="nama_teknologi" name="nama_teknologi" placeholder="Cth: Laravel + Docker" class="w-full border border-gray-300 px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required>
                     </div>
 
-                    <div class="space-y-2">
-                        <label class="block text-sm font-semibold text-gray-700">Perintah Eksekusi</label>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-800 mb-1">
+                                🛠 Setup Script
+                            </label>
 
-                        <textarea id="perintah_default" name="perintah_default" rows="6"
-                            placeholder="cd {target_dir} && git pull origin main && gunicorn --bind {port_bind} app:app"
-                            class="w-full border border-gray-300 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm bg-gray-50 text-gray-800 shadow-sm transition"
-                            required></textarea>
+                            <p class="text-xs text-gray-500 mb-2">
+                                Script yang dijalankan sekali saat proses deployment
+                                (clone repository, install dependency, migrate database, dll).
+                            </p>
+
+                            <textarea
+                                id="perintah_default"
+                                name="perintah_default"
+                                rows="7"
+                                onclick="setActiveTextarea(this)"
+                                placeholder="git clone {github_link} {target_dir} && cd {target_dir} && pip install -r requirements.txt"
+                                class="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 font-mono text-sm shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                required></textarea>
+                        </div>
+
 
                         <div>
-                            <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Variabel Otomatis (Klik untuk menyisipkan):</p>
-                            <div class="flex flex-wrap gap-1.5">
-                                <button type="button" onclick="insertTag('{target_dir}')" class="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-blue-200 transition-all transform active:scale-95">
-                                    <span class="text-blue-400 font-bold">+</span> <span>{target_dir}</span>
-                                </button>
-                                <button type="button" onclick="insertTag('{github_link}')" class="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-blue-200 transition-all transform active:scale-95">
-                                    <span class="text-blue-400 font-bold">+</span> <span>{github_link}</span>
-                                </button>
-                                <button type="button" onclick="insertTag('{port}')" class="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-blue-200 transition-all transform active:scale-95">
-                                    <span class="text-blue-400 font-bold">+</span> <span>{port}</span>
+                            <label class="block text-sm font-semibold text-gray-800 mb-1">
+                                🚀 Startup Command
+                            </label>
+
+                            <p class="text-xs text-gray-500 mb-2">
+                                Digunakan hanya untuk memastikan aplikasi berhasil berjalan.
+                                DeployIn akan melakukan health check sebelum menjalankan Production Command.
+                            </p>
+
+                            <textarea
+                                id="startup_command"
+                                name="startup_command"
+                                rows="4"
+                                onclick="setActiveTextarea(this)"
+                                placeholder="gunicorn --bind {port_bind} app:app"
+                                class="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 font-mono text-sm shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                required></textarea>
+                        </div>
+
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-800 mb-1">
+                                ⚡ Production Command
+                            </label>
+
+                            <p class="text-xs text-gray-500 mb-2">
+                                Perintah yang dijalankan setelah Startup Command berhasil.
+                                Biasanya berupa daemon, supervisor, pm2, atau systemd.
+                            </p>
+
+                            <textarea
+                                id="production_command"
+                                name="production_command"
+                                rows="4"
+                                onclick="setActiveTextarea(this)"
+                                placeholder="gunicorn --bind {port_bind} --daemon app:app"
+                                class="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 font-mono text-sm shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                required></textarea>
+                        </div>
+
+
+                        <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+
+                            <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                                Variabel Otomatis
+                            </p>
+
+                            <p class="mb-3 text-xs text-blue-600">
+                                Klik salah satu variabel di bawah untuk menyisipkannya ke textarea yang sedang aktif.
+                            </p>
+
+                            <div class="flex flex-wrap gap-2">
+
+                                <button
+                                    type="button"
+                                    onclick="insertTag('{target_dir}')"
+                                    class="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">
+                                    {target_dir}
                                 </button>
 
-                                <button type="button" onclick="insertTag('{port_bind}')" class="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-indigo-200 transition-all transform active:scale-95">
-                                    <span class="text-indigo-400 font-bold">+</span> <span>{port_bind}</span>
+                                <button
+                                    type="button"
+                                    onclick="insertTag('{github_link}')"
+                                    class="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">
+                                    {github_link}
                                 </button>
-                                <button type="button" onclick="insertTag('{nginx_configuration}')" class="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-indigo-200 transition-all transform active:scale-95">
-                                    <span class="text-indigo-400 font-bold">+</span> <span>{nginx_configuration}</span>
+
+                                <button
+                                    type="button"
+                                    onclick="insertTag('{port}')"
+                                    class="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">
+                                    {port}
                                 </button>
+
+                                <button
+                                    type="button"
+                                    onclick="insertTag('{port_bind}')"
+                                    class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100">
+                                    {port_bind}
+                                </button>
+
                             </div>
+
                         </div>
+
                     </div>
 
                     <!-- Pilihan Global hanya muncul jika Admin -->
@@ -105,7 +183,7 @@
             </div>
 
             <!-- KOLOM KANAN: Daftar Template -->
-            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md border border-gray-100">
+            <div class="lg:col-span-2 lg:order-2 order-1 bg-white p-6 rounded-xl shadow-md border border-gray-100">
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Daftar Template Anda</h2>
 
                 <div class="overflow-x-auto">
@@ -133,7 +211,7 @@
                                     <!-- Logika Hak Akses Edit -->
                                     {% if current_user.role == 'admin' or t.user_id == current_user.id %}
                                         <!-- Tombol Edit -->
-                                        <button onclick="editTemplate('{{ t.id }}', '{{ t.nama_teknologi }}', `{{ t.perintah_default | replace('\n', '\\n') | replace('\r', '') }}`, {% if t.is_global %}true{% else %}false{% endif %})" class="text-blue-500 hover:text-blue-700 font-semibold px-2 py-1 rounded hover:bg-blue-50 transition">
+                                        <button onclick="editTemplate('{{ t.id }}', '{{ t.nama_teknologi }}', `{{ t.perintah_default | replace('\n', '\\n') | replace('\r', '') }}`, `{{ t.startup_command }}`, `{{ t.production_command }}`, {% if t.is_global %}true{% else %}false{% endif %})" class="text-blue-500 hover:text-blue-700 font-semibold px-2 py-1 rounded hover:bg-blue-50 transition">
                                             Edit
                                         </button>
 
@@ -165,32 +243,41 @@
 
     <!-- Script Interaktif -->
     <script>
-        // Fungsi menyisipkan tag ke dalam textarea
+        let activeTextarea = null;
+
+        function setActiveTextarea(el) {
+            activeTextarea = el;
+        }
+
         function insertTag(tag) {
-            const textarea = document.getElementById('perintah_default');
 
-            // Ambil posisi awal dan akhir kursor saat ini
-            const startPos = textarea.selectionStart;
-            const endPos = textarea.selectionEnd;
-            const currentText = textarea.value;
+            if (!activeTextarea) {
+                alert("Pilih salah satu textarea terlebih dahulu.");
+                return;
+            }
 
-            // Sisipkan tag di antara teks sebelum kursor dan teks setelah kursor
-            textarea.value = currentText.substring(0, startPos) + tag + currentText.substring(endPos, currentText.length);
+            const start = activeTextarea.selectionStart;
+            const end = activeTextarea.selectionEnd;
 
-            // Pindahkan posisi kursor tepat setelah tag yang baru saja dimasukkan
-            const newCursorPos = startPos + tag.length;
-            textarea.selectionStart = newCursorPos;
-            textarea.selectionEnd = newCursorPos;
+            activeTextarea.value =
+                activeTextarea.value.substring(0, start) +
+                tag +
+                activeTextarea.value.substring(end);
 
-            // Kembalikan fokus ke textarea
-            textarea.focus();
+            activeTextarea.selectionStart =
+            activeTextarea.selectionEnd =
+                start + tag.length;
+
+            activeTextarea.focus();
         }
 
         // Fungsi mengubah form menjadi mode Edit
-        function editTemplate(id, nama, perintah, isGlobal) {
+        function editTemplate(id, nama, perintah, startup, production, isGlobal) {
             document.getElementById('formTitle').innerText = "Edit Template";
             document.getElementById('nama_teknologi').value = nama;
             document.getElementById('perintah_default').value = perintah;
+            document.getElementById("startup_command").value = startup;
+            document.getElementById("production_command").value = production;
 
             const checkbox = document.getElementById('is_global');
             if (checkbox) checkbox.checked = isGlobal;
