@@ -36,6 +36,18 @@ class Template(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nama_teknologi = db.Column(db.String(100), nullable=False)  # Contoh: "Python Flask"
     perintah_default = db.Column(db.Text, nullable=False)  # Perintah terminal bash
+    startup_command = db.Column(
+        db.Text,
+        nullable=True
+    )
+    production_command = db.Column(
+        db.Text,
+        nullable=True
+    )
+    health_check_command = db.Column(
+        db.Text,
+        nullable=True
+    )
     is_global = db.Column(db.Boolean, default=False)  # True jika dibuat admin untuk semua orang
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Null jika global
 
