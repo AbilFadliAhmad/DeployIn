@@ -87,7 +87,7 @@
                                 name="startup_command"
                                 rows="4"
                                 onclick="setActiveTextarea(this)"
-                                placeholder="gunicorn --bind {port_bind} app:app"
+                                placeholder="gunicorn --bind {host}:{port} app:app"
                                 class="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 font-mono text-sm shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                                 required></textarea>
                         </div>
@@ -108,7 +108,7 @@
                                 name="production_command"
                                 rows="4"
                                 onclick="setActiveTextarea(this)"
-                                placeholder="gunicorn --bind {port_bind} --daemon app:app"
+                                placeholder="gunicorn --bind {host}:{port} --daemon app:app"
                                 class="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 font-mono text-sm shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                                 required></textarea>
                         </div>
@@ -149,9 +149,9 @@
 
                                 <button
                                     type="button"
-                                    onclick="insertTag('{port_bind}')"
+                                    onclick="insertTag('{host}')"
                                     class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100">
-                                    {port_bind}
+                                    {host}
                                 </button>
 
                             </div>
